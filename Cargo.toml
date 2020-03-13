@@ -4,5 +4,14 @@ version = "0.0.0"
 authors = ["KAMADA Ken'ichi <kamada@nanohz.org>"]
 edition = "2018"
 
+description = "Automatic checked arithmetic operations in Rust"
+documentation = "https://docs.rs/checked_ops"
+homepage = "https://github.com/kamadak/checked_ops-rs"
+repository = "https://github.com/kamadak/checked_ops-rs"
+readme = "README"
+keywords = ["arithmetic", "checked"]
+categories = ["rust-patterns"]
+license = "BSD-2-Clause"
+
 [dependencies]
 num-traits = "0.2.4"
