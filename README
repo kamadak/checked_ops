@@ -1,0 +1,10 @@
+Automatic checked arithmetic operations in Rust
+-----------------------------------------------
+
+   Are you tired of writing checked arithmetic operations like this?
+
+      a.checked_add(b).and_then(|t| t.checked_mul(c))
+
+   The checked_ops crate to the rescue.
+
+      checked_ops!((a + b) * c)

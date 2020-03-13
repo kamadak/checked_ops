@@ -25,10 +25,55 @@
 //
 
 //! Automatic checked arithmetic operations in Rust.
+//!
+//! The `checked_ops` macro takes an expression and expands it into a
+//! checked form.
+//! You no longer need to type:
+//! ```
+//! # let (a, b, c) = (1u8, 1, 1);
+//! a.checked_add(b).and_then(|t| t.checked_mul(c))
+//! # ;
+//! ```
+//! You can just do:
+//! ```
+//! # use checked_ops::checked_ops;
+//! # let (a, b, c) = (1u8, 1, 1);
+//! checked_ops!((a + b) * c)
+//! # ;
+//! ```
+//!
+//! The current implementation has several limitations.
+//! See the documentation of `checked_ops` macro for details.
 
 use num_traits::{CheckedAdd, CheckedSub, CheckedMul, CheckedDiv, CheckedRem};
 
 /// Takes an expression and expands it into a "checked" form.
+///
+/// Supported operators are: `+`, `-`, `*`, `/`, `%` (binary operators),
+/// and `as` (cast).
+///
+/// Supported operands are: number literals, simple variables (single-token
+/// expressions), and pathenthesized expressions.
+///
+/// # Examples
+///
+/// ```
+/// # use checked_ops::checked_ops;
+/// assert_eq!(checked_ops!(1 - 2), Some(-1));
+/// assert_eq!(checked_ops!(1u32 - 2), None);
+/// assert_eq!(checked_ops!((1 - 2) as u32), None);
+/// assert_eq!(checked_ops!(1 / 0), None);
+/// ```
+///
+/// # Caveats
+///
+/// - Non-single-token operands such as field expressions
+///   (`struct.attribute`), function calls (`function()`), and paths
+///   (`std::u32::MAX`) are not supported.
+/// - Operators not listed above are not yet supported.
+///   These include unary `-` (negative), `<<`, and `>>` (bit shift).
+/// - A long expression causes "recursion limit reached while expanding
+///   the macro" error.
 #[macro_export]
 macro_rules! checked_ops {
     ($($rest:tt)+) => ($crate::cvt!([] [] $($rest)+));
