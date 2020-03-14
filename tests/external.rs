@@ -34,4 +34,6 @@ fn helper_access() {
     assert_eq!(checked_ops!(1 * 2), Some(2));
     assert_eq!(checked_ops!(1 / 2), Some(0));
     assert_eq!(checked_ops!(1 % 2), Some(1));
+    assert_eq!(checked_ops!(1 << 2), Some(4));
+    assert_eq!(checked_ops!(1 >> 2), Some(0));
 }

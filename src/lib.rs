@@ -45,12 +45,13 @@
 //! The current implementation has several limitations.
 //! See the documentation of `checked_ops` macro for details.
 
-use num_traits::{CheckedAdd, CheckedSub, CheckedMul, CheckedDiv, CheckedRem};
+use num_traits::{CheckedAdd, CheckedSub, CheckedMul, CheckedDiv, CheckedRem,
+                 CheckedShl, CheckedShr};
 
 /// Takes an expression and expands it into a "checked" form.
 ///
-/// Supported operators are: `+`, `-`, `*`, `/`, `%` (binary operators),
-/// and `as` (cast).
+/// Supported operators are: `+`, `-`, `*`, `/`, `%`, `<<`, `>>` (binary
+/// operators), and `as` (cast).
 ///
 /// Supported operands are: number literals, simple variables (single-token
 /// expressions), and pathenthesized expressions.
@@ -71,7 +72,7 @@ use num_traits::{CheckedAdd, CheckedSub, CheckedMul, CheckedDiv, CheckedRem};
 ///   (`struct.attribute`), function calls (`function()`), and paths
 ///   (`std::u32::MAX`) are not supported.
 /// - Operators not listed above are not yet supported.
-///   These include unary `-` (negative), `<<`, and `>>` (bit shift).
+///   These include unary `-` (negative).
 /// - A long expression causes "recursion limit reached while expanding
 ///   the macro" error.
 #[macro_export]
@@ -97,18 +98,38 @@ macro_rules! cvt {
             |x| std::convert::TryInto::<$type>::try_into(x).ok()) $(, $exp)*]
                       [$($op)*] $($rest)*));
     // Process an operator with higher precedence.
+    ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*] << $($rest:tt)*) =>
+        ($crate::cvt!([$crate::add($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*] >> $($rest:tt)*) =>
+        ($crate::cvt!([$crate::add($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [- $($op:tt)*] << $($rest:tt)*) =>
+        ($crate::cvt!([$crate::sub($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [- $($op:tt)*] >> $($rest:tt)*) =>
+        ($crate::cvt!([$crate::sub($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] + $($rest:tt)*) =>
         ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] - $($rest:tt)*) =>
         ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] << $($rest:tt)*) =>
+        ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] >> $($rest:tt)*) =>
+        ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] + $($rest:tt)*) =>
         ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] - $($rest:tt)*) =>
         ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] << $($rest:tt)*) =>
+        ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] >> $($rest:tt)*) =>
+        ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] + $($rest:tt)*) =>
         ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] - $($rest:tt)*) =>
         ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] << $($rest:tt)*) =>
+        ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] >> $($rest:tt)*) =>
+        ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
     // Process a left-associative operator with equal precedence.
     ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*] + $($rest:tt)*) =>
         ($crate::cvt!([$crate::add($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
@@ -136,6 +157,14 @@ macro_rules! cvt {
         ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] / $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] % $($rest:tt)*) =>
         ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] % $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [<< $($op:tt)*] << $($rest:tt)*) =>
+        ($crate::cvt!([$crate::shl($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [<< $($op:tt)*] >> $($rest:tt)*) =>
+        ($crate::cvt!([$crate::shl($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [>> $($op:tt)*] << $($rest:tt)*) =>
+        ($crate::cvt!([$crate::shr($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [>> $($op:tt)*] >> $($rest:tt)*) =>
+        ($crate::cvt!([$crate::shr($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
     // Push the operator otherwise.
     ([$($exp:expr),*] [$($op:tt)*] + $($rest:tt)*) =>
         ($crate::cvt!([$($exp),*] [+ $($op)*] $($rest)*));
@@ -147,6 +176,10 @@ macro_rules! cvt {
         ($crate::cvt!([$($exp),*] [/ $($op)*] $($rest)*));
     ([$($exp:expr),*] [$($op:tt)*] % $($rest:tt)*) =>
         ($crate::cvt!([$($exp),*] [% $($op)*] $($rest)*));
+    ([$($exp:expr),*] [$($op:tt)*] << $($rest:tt)*) =>
+        ($crate::cvt!([$($exp),*] [<< $($op)*] $($rest)*));
+    ([$($exp:expr),*] [$($op:tt)*] >> $($rest:tt)*) =>
+        ($crate::cvt!([$($exp),*] [>> $($op)*] $($rest)*));
     // Push an operand.
     ([$($exp:expr),*] [$($op:tt)*] $operand:literal $($rest:tt)*) =>
         ($crate::cvt!([Some($operand) $(, $exp)*] [$($op)*] $($rest)*));
@@ -163,6 +196,10 @@ macro_rules! cvt {
         ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*]));
     ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*]) =>
         ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*]));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [<< $($op:tt)*]) =>
+        ($crate::cvt!([$crate::shl($a, $b) $(, $exp)*] [$($op)*]));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [>> $($op:tt)*]) =>
+        ($crate::cvt!([$crate::shr($a, $b) $(, $exp)*] [$($op)*]));
     // Finished.
     ([$exp:expr] []) =>
         ($exp);
@@ -198,6 +235,18 @@ pub fn rem<T>(a: Option<T>, b: Option<T>) -> Option<T> where T: CheckedRem {
     a?.checked_rem(&b?)
 }
 
+#[doc(hidden)]
+#[inline]
+pub fn shl<T>(a: Option<T>, b: Option<u32>) -> Option<T> where T: CheckedShl {
+    a?.checked_shl(b?)
+}
+
+#[doc(hidden)]
+#[inline]
+pub fn shr<T>(a: Option<T>, b: Option<u32>) -> Option<T> where T: CheckedShr {
+    a?.checked_shr(b?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,6 +274,11 @@ mod tests {
         assert_eq!(checked_ops!(7 % 5 / 3), Some(0));   // 7
         assert_eq!(checked_ops!(7 % 5 % 3), Some(2));   // 1
 
+        assert_eq!(checked_ops!(9 << 3 << 1), Some(144));  // 576
+        assert_eq!(checked_ops!(9 << 3 >> 1), Some(36));   // 18
+        assert_eq!(checked_ops!(9 >> 3 >> 1), Some(0));    // 4
+        assert_eq!(checked_ops!(9 >> 3 << 1), Some(2));    // 0
+
         assert_eq!(checked_ops!(1 as u16 as u8), Some(1u8));
     }
 
@@ -236,6 +290,17 @@ mod tests {
         assert_eq!(checked_ops!(7 - 5 * 3), Some(-8));  // 6
         assert_eq!(checked_ops!(7 - 5 / 3), Some(6));   // 0
         assert_eq!(checked_ops!(7 - 5 % 3), Some(5));   // 2
+
+        assert_eq!(checked_ops!(7 << 3 + 2), Some(224));  // 58
+        assert_eq!(checked_ops!(7 << 3 - 2), Some(14));   // 54
+        assert_eq!(checked_ops!(7 << 3 * 2), Some(448));  // 112
+        assert_eq!(checked_ops!(7 << 3 / 2), Some(14));   // 28
+        assert_eq!(checked_ops!(7 << 3 % 2), Some(14));   // 0
+        assert_eq!(checked_ops!(9 >> 3 + 2), Some(0));    // 3
+        assert_eq!(checked_ops!(9 >> 3 - 2), Some(4));    // -1
+        assert_eq!(checked_ops!(9 >> 3 * 2), Some(0));    // 2
+        assert_eq!(checked_ops!(9 >> 3 / 2), Some(4));    // 0
+        assert_eq!(checked_ops!(9 >> 3 % 2), Some(4));    // 1
 
         let m1 = -1;
         assert_eq!(checked_ops!(m1 + 128 as i8), None); // 127
@@ -274,6 +339,10 @@ mod tests {
         assert_eq!(checked_ops!(1u32 - 2), None);
         assert_eq!(checked_ops!(15u8 * 17), Some(255));
         assert_eq!(checked_ops!(16u8 * 16), None);
+        assert_eq!(checked_ops!(3u8 << 7), Some(128));
+        assert_eq!(checked_ops!(3u8 << 8), None);
+        assert_eq!(checked_ops!(255u8 >> 7), Some(1));
+        assert_eq!(checked_ops!(255u8 >> 8), None);
         assert_eq!(checked_ops!((1i32 - 1) as u32), Some(0));
         assert_eq!(checked_ops!((1i32 - 2) as u32), None);
         assert_eq!(checked_ops!(255 as u8), Some(255));
