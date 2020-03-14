@@ -8,3 +8,24 @@ Automatic checked arithmetic operations in Rust
    The checked_ops crate to the rescue.
 
       checked_ops!((a + b) * c)
+
+Usage
+-----
+
+   Add a dependency entry to your Cargo.toml.
+
+      [dependencies]
+      checked_ops = "0.1"
+
+   Import the macro into your source code.
+
+      use checked_ops::checked_ops;
+
+   Use the macro.
+
+      checked_ops!((a + b) * c)
+
+Dependencies
+------------
+
+   Rust 1.34 or later is required.
