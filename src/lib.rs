@@ -99,41 +99,41 @@ macro_rules! cvt {
     // Process an operator with higher precedence.
     ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] + $($rest:tt)*) =>
         ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] + $($rest:tt)*) =>
-        ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] + $($rest:tt)*) =>
-        ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] - $($rest:tt)*) =>
         ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] + $($rest:tt)*) =>
+        ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] - $($rest:tt)*) =>
         ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] + $($rest:tt)*) =>
+        ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] - $($rest:tt)*) =>
         ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
     // Process a left-associative operator with equal precedence.
     ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*] + $($rest:tt)*) =>
         ($crate::cvt!([$crate::add($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [- $($op:tt)*] + $($rest:tt)*) =>
-        ($crate::cvt!([$crate::sub($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*] - $($rest:tt)*) =>
         ($crate::cvt!([$crate::add($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [- $($op:tt)*] + $($rest:tt)*) =>
+        ($crate::cvt!([$crate::sub($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [- $($op:tt)*] - $($rest:tt)*) =>
         ($crate::cvt!([$crate::sub($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] * $($rest:tt)*) =>
         ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] * $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] * $($rest:tt)*) =>
-        ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] * $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] * $($rest:tt)*) =>
-        ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] * $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] / $($rest:tt)*) =>
         ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] / $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] / $($rest:tt)*) =>
-        ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] / $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] / $($rest:tt)*) =>
-        ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] / $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] % $($rest:tt)*) =>
         ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] % $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] * $($rest:tt)*) =>
+        ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] * $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] / $($rest:tt)*) =>
+        ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] / $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] % $($rest:tt)*) =>
         ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] % $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] * $($rest:tt)*) =>
+        ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] * $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] / $($rest:tt)*) =>
+        ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] / $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] % $($rest:tt)*) =>
         ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] % $($rest)*));
     // Push the operator otherwise.
