@@ -90,6 +90,7 @@ macro_rules! cvt {
     ([$($exp:expr),*] [$($op:tt)*] ($($inside:tt)+) $($rest:tt)*) =>
         ($crate::cvt!([$crate::cvt!([] [] $($inside)+) $(, $exp)*]
                       [$($op)*] $($rest)*));
+
     // Process "as" immediately, because it has the highest precedence
     // among supported operators.  Use $type:tt instead of ty, because
     // ty cannot be followed by tt, literal +, and so on.
@@ -97,6 +98,7 @@ macro_rules! cvt {
         ($crate::cvt!([$a.and_then(
             |x| std::convert::TryInto::<$type>::try_into(x).ok()) $(, $exp)*]
                       [$($op)*] $($rest)*));
+
     // Process an operator with higher precedence.
     ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*] << $($rest:tt)*) =>
         ($crate::cvt!([$crate::add($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
@@ -130,6 +132,7 @@ macro_rules! cvt {
         ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] >> $($rest:tt)*) =>
         ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
+
     // Process a left-associative operator with equal precedence.
     ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*] + $($rest:tt)*) =>
         ($crate::cvt!([$crate::add($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
@@ -165,6 +168,7 @@ macro_rules! cvt {
         ($crate::cvt!([$crate::shr($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
     ([$b:expr, $a:expr $(, $exp:expr)*] [>> $($op:tt)*] >> $($rest:tt)*) =>
         ($crate::cvt!([$crate::shr($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
+
     // Push the operator otherwise.
     ([$($exp:expr),*] [$($op:tt)*] + $($rest:tt)*) =>
         ($crate::cvt!([$($exp),*] [+ $($op)*] $($rest)*));
@@ -180,11 +184,13 @@ macro_rules! cvt {
         ($crate::cvt!([$($exp),*] [<< $($op)*] $($rest)*));
     ([$($exp:expr),*] [$($op:tt)*] >> $($rest:tt)*) =>
         ($crate::cvt!([$($exp),*] [>> $($op)*] $($rest)*));
+
     // Push an operand.
     ([$($exp:expr),*] [$($op:tt)*] $operand:literal $($rest:tt)*) =>
         ($crate::cvt!([Some($operand) $(, $exp)*] [$($op)*] $($rest)*));
     ([$($exp:expr),*] [$($op:tt)*] $operand:ident $($rest:tt)*) =>
         ($crate::cvt!([Some($operand) $(, $exp)*] [$($op)*] $($rest)*));
+
     // Process the operators in the stack when there is no remaining token.
     ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*]) =>
         ($crate::cvt!([$crate::add($a, $b) $(, $exp)*] [$($op)*]));
@@ -200,6 +206,7 @@ macro_rules! cvt {
         ($crate::cvt!([$crate::shl($a, $b) $(, $exp)*] [$($op)*]));
     ([$b:expr, $a:expr $(, $exp:expr)*] [>> $($op:tt)*]) =>
         ($crate::cvt!([$crate::shr($a, $b) $(, $exp)*] [$($op)*]));
+
     // Finished.
     ([$exp:expr] []) =>
         ($exp);
