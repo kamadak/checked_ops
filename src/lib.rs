@@ -46,12 +46,12 @@
 //! See the documentation of `checked_ops` macro for details.
 
 use num_traits::{CheckedAdd, CheckedSub, CheckedMul, CheckedDiv, CheckedRem,
-                 CheckedShl, CheckedShr};
+                 CheckedShl, CheckedShr, CheckedNeg};
 
 /// Takes an expression and expands it into a "checked" form.
 ///
 /// Supported operators are: `+`, `-`, `*`, `/`, `%`, `<<`, `>>` (binary
-/// operators), and `as` (cast).
+/// operators), `-` (unary minus), and `as` (cast).
 ///
 /// Supported operands are: number literals, simple variables (single-token
 /// expressions), and pathenthesized expressions.
@@ -71,13 +71,12 @@ use num_traits::{CheckedAdd, CheckedSub, CheckedMul, CheckedDiv, CheckedRem,
 /// - Non-single-token operands such as field expressions
 ///   (`struct.attribute`), function calls (`function()`), and paths
 ///   (`std::u32::MAX`) are not supported.
-/// - Operators not listed above are not yet supported.
-///   These include unary `-` (negative).
+/// - Operators not listed above are not supported.
 /// - A long expression causes "recursion limit reached while expanding
 ///   the macro" error.
 #[macro_export]
 macro_rules! checked_ops {
-    ($($rest:tt)+) => ($crate::cvt!([] [] $($rest)+));
+    ($($rest:tt)+) => ($crate::ex!([] [] $($rest)+));
 }
 
 // Parse the expression with Dijkstra's shunting-yard algorithm.
@@ -85,127 +84,153 @@ macro_rules! checked_ops {
 //    [constructed expression stack] [operator stack] remaining tokens
 #[doc(hidden)]
 #[macro_export]
-macro_rules! cvt {
+macro_rules! ex {
     // Process a pair of parentheses.
     ([$($exp:expr),*] [$($op:tt)*] ($($inside:tt)+) $($rest:tt)*) =>
-        ($crate::cvt!([$crate::cvt!([] [] $($inside)+) $(, $exp)*]
-                      [$($op)*] $($rest)*));
+        ($crate::op!([$crate::ex!([] [] $($inside)+) $(, $exp)*]
+                     [$($op)*] $($rest)*));
 
-    // Process "as" immediately, because it has the highest precedence
-    // among supported operators.  Use $type:tt instead of ty, because
-    // ty cannot be followed by tt, literal +, and so on.
-    ([$a:expr $(, $exp:expr)*] [$($op:tt)*] as $type:tt $($rest:tt)*) =>
-        ($crate::cvt!([$a.and_then(
-            |x| std::convert::TryInto::<$type>::try_into(x).ok()) $(, $exp)*]
-                      [$($op)*] $($rest)*));
-
-    // Process an operator with higher precedence.
-    ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*] << $($rest:tt)*) =>
-        ($crate::cvt!([$crate::add($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*] >> $($rest:tt)*) =>
-        ($crate::cvt!([$crate::add($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [- $($op:tt)*] << $($rest:tt)*) =>
-        ($crate::cvt!([$crate::sub($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [- $($op:tt)*] >> $($rest:tt)*) =>
-        ($crate::cvt!([$crate::sub($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] + $($rest:tt)*) =>
-        ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] - $($rest:tt)*) =>
-        ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] << $($rest:tt)*) =>
-        ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] >> $($rest:tt)*) =>
-        ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] + $($rest:tt)*) =>
-        ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] - $($rest:tt)*) =>
-        ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] << $($rest:tt)*) =>
-        ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] >> $($rest:tt)*) =>
-        ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] + $($rest:tt)*) =>
-        ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] - $($rest:tt)*) =>
-        ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] << $($rest:tt)*) =>
-        ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] >> $($rest:tt)*) =>
-        ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
-
-    // Process a left-associative operator with equal precedence.
-    ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*] + $($rest:tt)*) =>
-        ($crate::cvt!([$crate::add($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*] - $($rest:tt)*) =>
-        ($crate::cvt!([$crate::add($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [- $($op:tt)*] + $($rest:tt)*) =>
-        ($crate::cvt!([$crate::sub($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [- $($op:tt)*] - $($rest:tt)*) =>
-        ($crate::cvt!([$crate::sub($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] * $($rest:tt)*) =>
-        ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] * $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] / $($rest:tt)*) =>
-        ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] / $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] % $($rest:tt)*) =>
-        ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] % $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] * $($rest:tt)*) =>
-        ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] * $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] / $($rest:tt)*) =>
-        ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] / $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] % $($rest:tt)*) =>
-        ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*] % $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] * $($rest:tt)*) =>
-        ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] * $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] / $($rest:tt)*) =>
-        ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] / $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] % $($rest:tt)*) =>
-        ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] % $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [<< $($op:tt)*] << $($rest:tt)*) =>
-        ($crate::cvt!([$crate::shl($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [<< $($op:tt)*] >> $($rest:tt)*) =>
-        ($crate::cvt!([$crate::shl($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [>> $($op:tt)*] << $($rest:tt)*) =>
-        ($crate::cvt!([$crate::shr($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
-    ([$b:expr, $a:expr $(, $exp:expr)*] [>> $($op:tt)*] >> $($rest:tt)*) =>
-        ($crate::cvt!([$crate::shr($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
-
-    // Push the operator otherwise.
-    ([$($exp:expr),*] [$($op:tt)*] + $($rest:tt)*) =>
-        ($crate::cvt!([$($exp),*] [+ $($op)*] $($rest)*));
+    // Match a unary minus before matching operands with the `literal`
+    // specifier because the compilation fails if the `literal` specifier
+    // encounters `-` not followed by a literal.
+    //
+    // Process negative numbers (unary minus + literal number)
+    // such as -128i8 and -(128i8) at once.
+    // The 128i8 part overflows if processed separately.
+    ([$($exp:expr),*] [$($op:tt)*] - - $($rest:tt)*) =>
+        ($crate::ex!([$($exp),*] [UM $($op)*] - $($rest)*));
+    ([$($exp:expr),*] [$($op:tt)*] - $operand:literal $($rest:tt)*) =>
+        ($crate::op!([Some(-$operand) $(, $exp)*] [$($op)*] $($rest)*));
+    ([$($exp:expr),*] [$($op:tt)*] - ( - $($inner:tt)* ) $($rest:tt)*) =>
+        ($crate::ex!([$($exp),*] [UM $($op)*] ( - $($inner)* ) $($rest)*));
+    ([$($exp:expr),*] [$($op:tt)*] - ( $operand:literal ) $($rest:tt)*) =>
+        ($crate::op!([Some(-($operand)) $(, $exp)*] [$($op)*] $($rest)*));
     ([$($exp:expr),*] [$($op:tt)*] - $($rest:tt)*) =>
-        ($crate::cvt!([$($exp),*] [- $($op)*] $($rest)*));
-    ([$($exp:expr),*] [$($op:tt)*] * $($rest:tt)*) =>
-        ($crate::cvt!([$($exp),*] [* $($op)*] $($rest)*));
-    ([$($exp:expr),*] [$($op:tt)*] / $($rest:tt)*) =>
-        ($crate::cvt!([$($exp),*] [/ $($op)*] $($rest)*));
-    ([$($exp:expr),*] [$($op:tt)*] % $($rest:tt)*) =>
-        ($crate::cvt!([$($exp),*] [% $($op)*] $($rest)*));
-    ([$($exp:expr),*] [$($op:tt)*] << $($rest:tt)*) =>
-        ($crate::cvt!([$($exp),*] [<< $($op)*] $($rest)*));
-    ([$($exp:expr),*] [$($op:tt)*] >> $($rest:tt)*) =>
-        ($crate::cvt!([$($exp),*] [>> $($op)*] $($rest)*));
+        ($crate::ex!([$($exp),*] [UM $($op)*] $($rest)*));
 
     // Push an operand.
     ([$($exp:expr),*] [$($op:tt)*] $operand:literal $($rest:tt)*) =>
-        ($crate::cvt!([Some($operand) $(, $exp)*] [$($op)*] $($rest)*));
+        ($crate::op!([Some($operand) $(, $exp)*] [$($op)*] $($rest)*));
     ([$($exp:expr),*] [$($op:tt)*] $operand:ident $($rest:tt)*) =>
-        ($crate::cvt!([Some($operand) $(, $exp)*] [$($op)*] $($rest)*));
+        ($crate::op!([Some($operand) $(, $exp)*] [$($op)*] $($rest)*));
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! op {
+    // Pop a unary minus and process it.
+    ([$a:expr $(, $exp:expr)*] [UM $($op:tt)*] $($rest:tt)*) =>
+        ($crate::op!([$crate::neg($a) $(, $exp)*] [$($op)*] $($rest)*));
+
+    // Process "as" immediately, because it has the highest precedence
+    // among supported binary operators.  Use $type:tt instead of ty,
+    // because ty cannot be followed by tt, literal +, and so on.
+    ([$a:expr $(, $exp:expr)*] [$($op:tt)*] as $type:tt $($rest:tt)*) =>
+        ($crate::op!([$a.and_then(
+            |x| std::convert::TryInto::<$type>::try_into(x).ok()) $(, $exp)*]
+                     [$($op)*] $($rest)*));
+
+    // Process an operator with higher precedence.
+    ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*] << $($rest:tt)*) =>
+        ($crate::op!([$crate::add($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*] >> $($rest:tt)*) =>
+        ($crate::op!([$crate::add($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [- $($op:tt)*] << $($rest:tt)*) =>
+        ($crate::op!([$crate::sub($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [- $($op:tt)*] >> $($rest:tt)*) =>
+        ($crate::op!([$crate::sub($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] + $($rest:tt)*) =>
+        ($crate::op!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] - $($rest:tt)*) =>
+        ($crate::op!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] << $($rest:tt)*) =>
+        ($crate::op!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] >> $($rest:tt)*) =>
+        ($crate::op!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] + $($rest:tt)*) =>
+        ($crate::op!([$crate::div($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] - $($rest:tt)*) =>
+        ($crate::op!([$crate::div($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] << $($rest:tt)*) =>
+        ($crate::op!([$crate::div($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] >> $($rest:tt)*) =>
+        ($crate::op!([$crate::div($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] + $($rest:tt)*) =>
+        ($crate::op!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] - $($rest:tt)*) =>
+        ($crate::op!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] << $($rest:tt)*) =>
+        ($crate::op!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] >> $($rest:tt)*) =>
+        ($crate::op!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
+
+    // Process a left-associative operator with equal precedence.
+    ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*] + $($rest:tt)*) =>
+        ($crate::op!([$crate::add($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*] - $($rest:tt)*) =>
+        ($crate::op!([$crate::add($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [- $($op:tt)*] + $($rest:tt)*) =>
+        ($crate::op!([$crate::sub($a, $b) $(, $exp)*] [$($op)*] + $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [- $($op:tt)*] - $($rest:tt)*) =>
+        ($crate::op!([$crate::sub($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] * $($rest:tt)*) =>
+        ($crate::op!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] * $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] / $($rest:tt)*) =>
+        ($crate::op!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] / $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*] % $($rest:tt)*) =>
+        ($crate::op!([$crate::mul($a, $b) $(, $exp)*] [$($op)*] % $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] * $($rest:tt)*) =>
+        ($crate::op!([$crate::div($a, $b) $(, $exp)*] [$($op)*] * $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] / $($rest:tt)*) =>
+        ($crate::op!([$crate::div($a, $b) $(, $exp)*] [$($op)*] / $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*] % $($rest:tt)*) =>
+        ($crate::op!([$crate::div($a, $b) $(, $exp)*] [$($op)*] % $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] * $($rest:tt)*) =>
+        ($crate::op!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] * $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] / $($rest:tt)*) =>
+        ($crate::op!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] / $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*] % $($rest:tt)*) =>
+        ($crate::op!([$crate::rem($a, $b) $(, $exp)*] [$($op)*] % $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [<< $($op:tt)*] << $($rest:tt)*) =>
+        ($crate::op!([$crate::shl($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [<< $($op:tt)*] >> $($rest:tt)*) =>
+        ($crate::op!([$crate::shl($a, $b) $(, $exp)*] [$($op)*] >> $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [>> $($op:tt)*] << $($rest:tt)*) =>
+        ($crate::op!([$crate::shr($a, $b) $(, $exp)*] [$($op)*] << $($rest)*));
+    ([$b:expr, $a:expr $(, $exp:expr)*] [>> $($op:tt)*] >> $($rest:tt)*) =>
+        ($crate::op!([$crate::shr($a, $b) $(, $exp)*] [$($op)*] - $($rest)*));
+
+    // Push the operator otherwise.
+    ([$($exp:expr),*] [$($op:tt)*] + $($rest:tt)*) =>
+        ($crate::ex!([$($exp),*] [+ $($op)*] $($rest)*));
+    ([$($exp:expr),*] [$($op:tt)*] - $($rest:tt)*) =>
+        ($crate::ex!([$($exp),*] [- $($op)*] $($rest)*));
+    ([$($exp:expr),*] [$($op:tt)*] * $($rest:tt)*) =>
+        ($crate::ex!([$($exp),*] [* $($op)*] $($rest)*));
+    ([$($exp:expr),*] [$($op:tt)*] / $($rest:tt)*) =>
+        ($crate::ex!([$($exp),*] [/ $($op)*] $($rest)*));
+    ([$($exp:expr),*] [$($op:tt)*] % $($rest:tt)*) =>
+        ($crate::ex!([$($exp),*] [% $($op)*] $($rest)*));
+    ([$($exp:expr),*] [$($op:tt)*] << $($rest:tt)*) =>
+        ($crate::ex!([$($exp),*] [<< $($op)*] $($rest)*));
+    ([$($exp:expr),*] [$($op:tt)*] >> $($rest:tt)*) =>
+        ($crate::ex!([$($exp),*] [>> $($op)*] $($rest)*));
 
     // Process the operators in the stack when there is no remaining token.
     ([$b:expr, $a:expr $(, $exp:expr)*] [+ $($op:tt)*]) =>
-        ($crate::cvt!([$crate::add($a, $b) $(, $exp)*] [$($op)*]));
+        ($crate::op!([$crate::add($a, $b) $(, $exp)*] [$($op)*]));
     ([$b:expr, $a:expr $(, $exp:expr)*] [- $($op:tt)*]) =>
-        ($crate::cvt!([$crate::sub($a, $b) $(, $exp)*] [$($op)*]));
+        ($crate::op!([$crate::sub($a, $b) $(, $exp)*] [$($op)*]));
     ([$b:expr, $a:expr $(, $exp:expr)*] [* $($op:tt)*]) =>
-        ($crate::cvt!([$crate::mul($a, $b) $(, $exp)*] [$($op)*]));
+        ($crate::op!([$crate::mul($a, $b) $(, $exp)*] [$($op)*]));
     ([$b:expr, $a:expr $(, $exp:expr)*] [/ $($op:tt)*]) =>
-        ($crate::cvt!([$crate::div($a, $b) $(, $exp)*] [$($op)*]));
+        ($crate::op!([$crate::div($a, $b) $(, $exp)*] [$($op)*]));
     ([$b:expr, $a:expr $(, $exp:expr)*] [% $($op:tt)*]) =>
-        ($crate::cvt!([$crate::rem($a, $b) $(, $exp)*] [$($op)*]));
+        ($crate::op!([$crate::rem($a, $b) $(, $exp)*] [$($op)*]));
     ([$b:expr, $a:expr $(, $exp:expr)*] [<< $($op:tt)*]) =>
-        ($crate::cvt!([$crate::shl($a, $b) $(, $exp)*] [$($op)*]));
+        ($crate::op!([$crate::shl($a, $b) $(, $exp)*] [$($op)*]));
     ([$b:expr, $a:expr $(, $exp:expr)*] [>> $($op:tt)*]) =>
-        ($crate::cvt!([$crate::shr($a, $b) $(, $exp)*] [$($op)*]));
+        ($crate::op!([$crate::shr($a, $b) $(, $exp)*] [$($op)*]));
 
     // Finished.
     ([$exp:expr] []) =>
@@ -252,6 +277,12 @@ pub fn shl<T>(a: Option<T>, b: Option<u32>) -> Option<T> where T: CheckedShl {
 #[inline]
 pub fn shr<T>(a: Option<T>, b: Option<u32>) -> Option<T> where T: CheckedShr {
     a?.checked_shr(b?)
+}
+
+#[doc(hidden)]
+#[inline]
+pub fn neg<T>(a: Option<T>) -> Option<T> where T: CheckedNeg {
+    a?.checked_neg()
 }
 
 #[cfg(test)]
@@ -309,8 +340,7 @@ mod tests {
         assert_eq!(checked_ops!(9 >> 3 / 2), Some(4));    // 0
         assert_eq!(checked_ops!(9 >> 3 % 2), Some(4));    // 1
 
-        let m1 = -1;
-        assert_eq!(checked_ops!(m1 + 128 as i8), None); // 127
+        assert_eq!(checked_ops!(-1 + 128 as i8), None); // 127
         assert_eq!(checked_ops!(7 - 128 as i8), None);  // -121
         assert_eq!(checked_ops!(0 * 128 as i8), None);  // 0
         assert_eq!(checked_ops!(0 / 128 as i8), None);  // 0
@@ -327,6 +357,28 @@ mod tests {
     fn variables() {
         let a = 1;
         assert_eq!(checked_ops!(a + 2), Some(3));
+    }
+
+    #[test]
+    fn unary_minus() {
+        let a = 1;
+        assert_eq!(checked_ops!(-1), Some(-1));
+        assert_eq!(checked_ops!(-a), Some(-1));
+        assert_eq!(checked_ops!(--1), Some(1));
+        assert_eq!(checked_ops!(--a), Some(1));
+        assert_eq!(checked_ops!(-(-1)), Some(1));
+        assert_eq!(checked_ops!(-(-a)), Some(1));
+        assert_eq!(checked_ops!(-(2 + 3)), Some(-5));
+        assert_eq!(checked_ops!(2 + -1), Some(1));
+        assert_eq!(checked_ops!(2 + -a), Some(1));
+        assert_eq!(checked_ops!(2 - -1), Some(3));
+        assert_eq!(checked_ops!(-1i8), Some(-1));
+
+        // These are valid negative numbers.
+        assert_eq!(checked_ops!(-128i8), Some(-128));
+        assert_eq!(checked_ops!(-(128i8)), Some(-128));
+        // rustc considers this as overflow (const_err), so this crate does.
+        assert_eq!(checked_ops!(---128i8), None);
     }
 
     #[test]
