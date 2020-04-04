@@ -95,7 +95,7 @@ macro_rules! ex {
     // encounters `-` not followed by a literal.
     //
     // Process negative numbers (unary minus + literal number)
-    // such as -128i8 and -(128i8) at once.
+    // such as -128i8, -(128i8), and -((128i8)) at once.
     // The 128i8 part overflows if processed separately.
     ([$($exp:expr),*] [$($op:tt)*] - - $($rest:tt)*) =>
         ($crate::ex!([$($exp),*] [UM $($op)*] - $($rest)*));
@@ -105,6 +105,8 @@ macro_rules! ex {
         ($crate::ex!([$($exp),*] [UM $($op)*] ( - $($inner)* ) $($rest)*));
     ([$($exp:expr),*] [$($op:tt)*] - ( $operand:literal ) $($rest:tt)*) =>
         ($crate::op!([Some(-($operand)) $(, $exp)*] [$($op)*] $($rest)*));
+    ([$($exp:expr),*] [$($op:tt)*] - ( ( $($inner:tt)* ) ) $($rest:tt)*) =>
+        ($crate::ex!([$($exp),*] [$($op)*] - ( $($inner)* ) $($rest)*));
     ([$($exp:expr),*] [$($op:tt)*] - $($rest:tt)*) =>
         ($crate::ex!([$($exp),*] [UM $($op)*] $($rest)*));
 
@@ -364,6 +366,8 @@ mod tests {
         let a = 1;
         assert_eq!(checked_ops!(-1), Some(-1));
         assert_eq!(checked_ops!(-a), Some(-1));
+        assert_eq!(checked_ops!(-(1)), Some(-1));
+        assert_eq!(checked_ops!(-(a)), Some(-1));
         assert_eq!(checked_ops!(--1), Some(1));
         assert_eq!(checked_ops!(--a), Some(1));
         assert_eq!(checked_ops!(-(-1)), Some(1));
@@ -377,6 +381,8 @@ mod tests {
         // These are valid negative numbers.
         assert_eq!(checked_ops!(-128i8), Some(-128));
         assert_eq!(checked_ops!(-(128i8)), Some(-128));
+        assert_eq!(checked_ops!(-((128i8))), Some(-128));
+        assert_eq!(checked_ops!(-(((128i8)))), Some(-128));
         // rustc considers this as overflow (const_err), so this crate does.
         assert_eq!(checked_ops!(---128i8), None);
     }
